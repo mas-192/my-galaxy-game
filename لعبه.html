@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Cosmic Survivor | الناجي الكوني</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; }
+        #overlay { position: absolute; top: 20px; width: 100%; text-align: center; color: #fff; pointer-events: none; }
+        .score-box { font-size: 30px; color: #00f2fe; text-shadow: 0 0 15px #00f2fe; }
+    </style>
+</head>
+<body>
+    <div id="overlay"><div class="score-box">النتيجة: <span id="score">0</span></div></div>
+    <canvas id="ctx"></canvas>
+
+<script>
+const canvas = document.getElementById('ctx');
+const c = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let score = 0;
+const player = { x: canvas.width/2, y: canvas.height/2, radius: 15, color: '#fff' };
+const bullets = [];
+const enemies = [];
+const particles = [];
+
+// توليد الأعداء بشكل مستمر
+function spawnEnemy() {
+    setInterval(() => {
+        const radius = Math.random() * 20 + 10;
+        let x, y;
+        if (Math.random() < 0.5) {
+            x = Math.random() < 0.5 ? 0 - radius : canvas.width + radius;
+            y = Math.random() * canvas.height;
+        } else {
+            x = Math.random() * canvas.width;
+            y = Math.random() < 0.5 ? 0 - radius : canvas.height + radius;
+        }
+        const angle = Math.atan2(player.y - y, player.x - x);
+        const velocity = { x: Math.cos(angle) * 2, y: Math.sin(angle) * 2 };
+        enemies.push({ x, y, radius, color: `hsl(${Math.random() * 360}, 70%, 50%)`, velocity });
+    }, 800);
+}
+
+function animate() {
+    const animId = requestAnimationFrame(animate);
+    c.fillStyle = 'rgba(0, 0, 0, 0.15)'; // تأثير الذيل الضوئي
+    c.fillRect(0, 0, canvas.width, canvas.height);
+
+    // رسم اللاعب
+    c.beginPath();
+    c.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+    c.fillStyle = player.color;
+    c.shadowBlur = 20; c.shadowColor = '#fff';
+    c.fill();
+
+    // تحديث الجزيئات (الانفجارات)
+    particles.forEach((p, i) => {
+        p.alpha -= 0.02;
+        if (p.alpha <= 0) particles.splice(i, 1);
+        else {
+            p.x += p.v.x; p.y += p.v.y;
+            c.save(); c.globalAlpha = p.alpha;
+            c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI*2);
+            c.fillStyle = p.c; c.fill(); c.restore();
+        }
+    });
+
+    // تحديث الرصاص
+    bullets.forEach((b, i) => {
+        b.x += b.v.x; b.y += b.v.y;
+        c.beginPath(); c.arc(b.x, b.y, 4, 0, Math.PI*2);
+        c.fillStyle = '#00f2fe'; c.fill();
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(i, 1);
+    });
+
+    // تحديث الأعداء والتصادم
+    enemies.forEach((e, i) => {
+        const angle = Math.atan2(player.y - e.y, player.x - e.x);
+        e.velocity = { x: Math.cos(angle) * 2.5, y: Math.sin(angle) * 2.5 };
+        e.x += e.velocity.x; e.y += e.velocity.y;
+        
+        c.beginPath(); c.arc(e.x, e.y, e.radius, 0, Math.PI*2);
+        c.fillStyle = e.color; c.fill();
+
+        // تصادم العدو مع اللاعب
+        if (Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
+            cancelAnimationFrame(animId);
+            alert("انتهت المهمة! النتيجة: " + score);
+            location.reload();
+        }
+
+        // تصادم الرصاص مع العدو
+        bullets.forEach((b, bi) => {
+            if (Math.hypot(b.x - e.x, b.y - e.y) < e.radius) {
+                for(let k=0; k<15; k++) particles.push({ x: e.x, y: e.y, r: Math.random()*3, c: e.color, v: {x: (Math.random()-0.5)*8, y: (Math.random()-0.5)*8}, alpha: 1 });
+                score += 10; scoreEl.innerText = score;
+                enemies.splice(i, 1); bullets.splice(bi, 1);
+            }
+        });
+    });
+}
+
+// التحكم بالحركة وإطلاق النار
+window.addEventListener('mousemove', (e) => {
+    player.x = e.clientX; player.y = e.clientY;
+});
+
+window.addEventListener('mousedown', (e) => {
+    // إطلاق 8 رصاصات في جميع الاتجاهات عند الضغط (Special Move)
+    for(let i=0; i<8; i++) {
+        const angle = (Math.PI * 2 / 8) * i;
+        bullets.push({ x: player.x, y: player.y, v: { x: Math.cos(angle)*10, y: Math.sin(angle)*10 } });
+    }
+});
+
+spawnEnemy();
+animate();
+</script>
+</body>
+</html>
